@@ -219,6 +219,7 @@ input[type="file"] {
 .chat-header {
     background: var(--bg-header);
     padding: 10px 16px;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
     display: flex;
     align-items: center;
     gap: 12px;
@@ -589,17 +590,74 @@ body.dark .date-bubble {
 }
 
 .message.highlight {
-    animation: highlightAnim 2s ease-out;
+    animation: highlightAnim 1.5s ease-out;
 }
 
 @keyframes highlightAnim {
-    0% {
-        background: #ffeb3b;
+
+    0%,
+    15% {
+        background: #ff9800;
+        transform: scale(1.02);
+    }
+
+    30% {
+        background: transparent;
+    }
+
+    45% {
+        background: #ff9800;
+    }
+
+    60% {
+        background: transparent;
+    }
+
+    75% {
+        background: #ff9800;
     }
 
     100% {
         background: inherit;
+        transform: scale(1);
     }
+}
+
+/* ========== MODAL CLOSE BUTTON ========== */
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    transition: all 0.2s;
+}
+
+.modal-close:hover {
+    background: rgba(0, 0, 0, 0.2);
+    transform: scale(1.1);
+}
+
+body.dark .modal-close {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+}
+
+body.dark .modal-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.modal-card {
+    position: relative;
 }
 
 /* ========== SETTINGS PANEL ========== */

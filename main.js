@@ -836,6 +836,11 @@ predefinedBtn.addEventListener('click', () => {
     passwordInput.focus();
 });
 
+// Close button handler
+document.getElementById('password-close')?.addEventListener('click', () => {
+    passwordModal.classList.add('hidden');
+});
+
 passwordModal.addEventListener('click', (e) => {
     if (e.target === passwordModal) {
         passwordModal.classList.add('hidden');

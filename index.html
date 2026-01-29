@@ -124,10 +124,12 @@
     <!-- Password Modal -->
     <div id="password-modal" class="modal-overlay hidden">
         <div class="modal-card">
+            <button id="password-close" class="modal-close">✕</button>
             <div class="modal-emoji">🔐</div>
             <h2>Accès Protégé</h2>
             <p>Entre le mot de passe pour accéder au chat secret</p>
-            <input type="password" id="password-input" class="modal-input" placeholder="Mot de passe...">
+            <input type="text" id="password-input" class="modal-input" placeholder="Mot de passe..." autocomplete="off"
+                autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
             <p id="password-error" class="password-error hidden">Mot de passe incorrect 💔</p>
             <button id="password-submit" class="modal-btn">Valider</button>
         </div>

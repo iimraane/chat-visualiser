@@ -4,32 +4,27 @@
 const https = require('https');
 
 // ============================================================
-// CONFIGURATION - REPLACE WITH YOUR GOOGLE DRIVE FOLDER ID
+// CONFIGURATION
 // ============================================================
-// To get the folder ID:
-// 1. Open the Google Drive folder
-// 2. Copy the URL: https://drive.google.com/drive/folders/XXXXX
-// 3. The folder ID is: XXXXX
+// The folder ID from your Google Drive link
 const GOOGLE_DRIVE_FOLDER_ID = '1eBlTsDxnTwpM7BNABTgnVDdQ-blksoPw';
-
-// Optional: Google API Key for better rate limits
-// Create one at https://console.cloud.google.com/apis/credentials
-// const GOOGLE_API_KEY = 'YOUR_API_KEY_HERE';
 
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
 
-function httpsGet(url) {
+function httpsGet(url, options = {}) {
     return new Promise((resolve, reject) => {
-        https.get(url, {
+        const req = https.get(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                ...options.headers
             }
         }, (res) => {
             // Follow redirects
             if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-                return httpsGet(res.headers.location).then(resolve).catch(reject);
+                return httpsGet(res.headers.location, options).then(resolve).catch(reject);
             }
 
             if (res.statusCode !== 200) {
@@ -41,40 +36,76 @@ function httpsGet(url) {
             res.on('data', chunk => chunks.push(chunk));
             res.on('end', () => resolve(Buffer.concat(chunks)));
             res.on('error', reject);
-        }).on('error', reject);
+        });
+        req.on('error', reject);
     });
 }
 
-// List files in a Google Drive folder (public folder)
-async function listFolderFiles(folderId) {
-    // Use the Google Drive embed page to get file list (works without API key)
-    const embedUrl = `https://drive.google.com/embeddedfolderview?id=${folderId}`;
+// Get file content from Google Drive using direct download URL
+async function getFileContent(fileId, isText = false) {
+    // Try the export URL first (works better for shared files)
+    const url = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
+    const data = await httpsGet(url);
+    return isText ? data.toString('utf-8') : data;
+}
 
+// List files using Google Drive's public folder viewer
+async function listFolderFiles(folderId) {
     try {
-        const html = await httpsGet(embedUrl);
+        // Use the folder view page which contains file info
+        const viewUrl = `https://drive.google.com/drive/folders/${folderId}`;
+        const html = await httpsGet(viewUrl);
         const htmlStr = html.toString('utf-8');
 
-        // Parse the file entries from the HTML
-        // Google Drive embed page contains file info in a specific format
         const files = [];
 
-        // Try to extract file IDs and names from the page
-        // Pattern for file entries in the embed view
-        const filePattern = /\["([a-zA-Z0-9_-]{25,})","([^"]+)"/g;
-        let match;
+        // Look for file entries in the Google Drive folder page
+        // Format: ["fileId","fileName",... 
+        // Also try the data format used in Google Drive
+        const patterns = [
+            // Pattern 1: Standard file entries
+            /\["([\w-]{20,})","([^"]+\.\w{2,4})"/g,
+            // Pattern 2: Alternate format
+            /"([\w-]{25,})"[^"]*"name":"([^"]+\.\w{2,4})"/g,
+        ];
 
-        while ((match = filePattern.exec(htmlStr)) !== null) {
-            const [, fileId, fileName] = match;
-            if (fileId && fileName && !fileName.includes('\\')) {
-                files.push({
-                    id: fileId,
-                    name: decodeURIComponent(fileName.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
+        for (const pattern of patterns) {
+            let match;
+            while ((match = pattern.exec(htmlStr)) !== null) {
+                const [, fileId, fileName] = match;
+                // Filter out non-file IDs and decode unicode
+                if (fileId && fileName && fileId.length >= 20 && !files.some(f => f.id === fileId)) {
+                    const decodedName = fileName.replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) =>
                         String.fromCharCode(parseInt(hex, 16))
-                    ))
-                });
+                    );
+                    files.push({ id: fileId, name: decodedName });
+                }
             }
         }
 
+        // If pattern matching fails, try extracting from data-id attributes
+        if (files.length === 0) {
+            const dataIdPattern = /data-id="([\w-]{25,})"/g;
+            const namePattern = /aria-label="([^"]+\.\w{2,4})"/g;
+
+            let ids = [];
+            let names = [];
+            let match;
+
+            while ((match = dataIdPattern.exec(htmlStr)) !== null) {
+                ids.push(match[1]);
+            }
+            while ((match = namePattern.exec(htmlStr)) !== null) {
+                names.push(match[1]);
+            }
+
+            // Match IDs with names (they should be in same order)
+            for (let i = 0; i < Math.min(ids.length, names.length); i++) {
+                files.push({ id: ids[i], name: names[i] });
+            }
+        }
+
+        console.log(`Found ${files.length} files in folder ${folderId}`);
         return files;
     } catch (error) {
         console.error('Error listing folder:', error);
@@ -82,16 +113,9 @@ async function listFolderFiles(folderId) {
     }
 }
 
-// Get file content from Google Drive
-async function getFileContent(fileId, asText = false) {
-    const url = `https://drive.google.com/uc?export=download&id=${fileId}`;
-    const data = await httpsGet(url);
-    return asText ? data.toString('utf-8') : data;
-}
-
 // Determine MIME type from filename
 function getMimeType(filename) {
-    const ext = filename.split('.').pop().toLowerCase();
+    const ext = (filename.split('.').pop() || '').toLowerCase();
     const mimeTypes = {
         'txt': 'text/plain; charset=utf-8',
         'jpg': 'image/jpeg',
@@ -119,7 +143,7 @@ exports.handler = async (event) => {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Cache-Control': 'public, max-age=86400' // Cache for 24 hours
+        'Cache-Control': 'public, max-age=3600'
     };
 
     if (event.httpMethod === 'OPTIONS') {
@@ -127,19 +151,33 @@ exports.handler = async (event) => {
     }
 
     try {
-        const { action, fileId, fileName } = event.queryStringParameters || {};
+        const params = event.queryStringParameters || {};
+        const action = params.action || params.type; // Support both old and new param names
 
-        // ACTION: List all files in the folder
+        // ACTION: List all files
         if (action === 'list') {
             const files = await listFolderFiles(GOOGLE_DRIVE_FOLDER_ID);
 
             // Separate chat file and media files
-            const chatFile = files.find(f => f.name.endsWith('.txt'));
-            const mediaFiles = files.filter(f => !f.name.endsWith('.txt'));
+            const chatFile = files.find(f => f.name.toLowerCase().endsWith('.txt'));
+            const mediaFiles = files.filter(f => !f.name.toLowerCase().endsWith('.txt'));
+
+            // If no files found via scraping, return a helpful error
+            if (files.length === 0) {
+                return {
+                    statusCode: 200,
+                    headers: { ...headers, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        success: false,
+                        error: 'Could not list folder contents. Make sure the folder is publicly shared.',
+                        folderId: GOOGLE_DRIVE_FOLDER_ID
+                    })
+                };
+            }
 
             return {
                 statusCode: 200,
-                headers: { ...headers, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600' },
+                headers: { ...headers, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     success: true,
                     chat: chatFile || null,
@@ -151,14 +189,19 @@ exports.handler = async (event) => {
 
         // ACTION: Get chat file content
         if (action === 'chat') {
+            // First get the file list to find the chat file
             const files = await listFolderFiles(GOOGLE_DRIVE_FOLDER_ID);
-            const chatFile = files.find(f => f.name.endsWith('.txt'));
+            const chatFile = files.find(f => f.name.toLowerCase().endsWith('.txt'));
 
             if (!chatFile) {
+                // Fallback: try to fetch directly if we have a known chat file ID
                 return {
                     statusCode: 404,
                     headers: { ...headers, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ error: 'Chat file not found in folder' })
+                    body: JSON.stringify({
+                        error: 'Chat file not found',
+                        filesFound: files.length
+                    })
                 };
             }
 
@@ -172,37 +215,37 @@ exports.handler = async (event) => {
         }
 
         // ACTION: Get a specific file by ID
-        if (action === 'file' && fileId) {
-            const data = await getFileContent(fileId);
-            const mimeType = getMimeType(fileName || 'file');
+        if ((action === 'file' || action === 'download') && params.fileId) {
+            const data = await getFileContent(params.fileId);
+            const mimeType = getMimeType(params.fileName || 'file');
 
             return {
                 statusCode: 200,
                 headers: {
                     ...headers,
                     'Content-Type': mimeType,
-                    'Cache-Control': 'public, max-age=604800' // Cache media for 7 days
+                    'Cache-Control': 'public, max-age=604800'
                 },
                 body: data.toString('base64'),
                 isBase64Encoded: true
             };
         }
 
-        // ACTION: Get media URL proxy (returns redirect to cached content)
-        if (action === 'media' && fileName) {
+        // ACTION: Get media by filename
+        if (action === 'media' && params.fileName) {
             const files = await listFolderFiles(GOOGLE_DRIVE_FOLDER_ID);
-            const mediaFile = files.find(f => f.name === fileName);
+            const mediaFile = files.find(f => f.name === params.fileName);
 
             if (!mediaFile) {
                 return {
                     statusCode: 404,
                     headers: { ...headers, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ error: 'Media file not found', fileName })
+                    body: JSON.stringify({ error: 'Media not found', fileName: params.fileName })
                 };
             }
 
             const data = await getFileContent(mediaFile.id);
-            const mimeType = getMimeType(fileName);
+            const mimeType = getMimeType(params.fileName);
 
             return {
                 statusCode: 200,
@@ -221,12 +264,7 @@ exports.handler = async (event) => {
             headers: { ...headers, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 error: 'Invalid request',
-                usage: {
-                    list: '?action=list',
-                    chat: '?action=chat',
-                    file: '?action=file&fileId=XXX&fileName=example.jpg',
-                    media: '?action=media&fileName=example.jpg'
-                }
+                usage: '?action=list | ?action=chat | ?action=file&fileId=XXX | ?action=media&fileName=XXX'
             })
         };
 
