@@ -695,7 +695,7 @@ backBtn.addEventListener('click', () => {
     chatText = '';
     searchInput.value = '';
     floatingDate.classList.remove('visible');
-    
+
     // Show predefined button again
     predefinedBtn.style.display = 'block';
 });
@@ -863,7 +863,7 @@ async function validatePassword() {
         if (hasCached) {
             loadCachedPredefinedChat();
         } else {
-            showUploadModal();
+            showDownloadModal();
         }
     } else {
         // Wrong password - broken hearts
@@ -975,17 +975,167 @@ async function getAllMediaFromCache() {
     });
 }
 
-// ========== UPLOAD MODAL ==========
+// ========== AUTO DOWNLOAD FROM GOOGLE DRIVE ==========
 
-function showUploadModal() {
+function showDownloadModal() {
+    const modal = document.createElement('div');
+    modal.id = 'download-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-card" style="max-width: 420px;">
+            <div class="modal-emoji" id="download-emoji">📥</div>
+            <h2 id="download-title">Téléchargement des données</h2>
+            <p id="download-message">Première utilisation ! Téléchargement automatique en cours...</p>
+            
+            <div class="download-progress-container" style="margin: 20px 0;">
+                <div class="download-progress-bar" id="download-progress" style="width: 0%;"></div>
+            </div>
+            
+            <p id="download-status" style="font-size: 13px; color: var(--text-secondary);">Connexion...</p>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add progress bar styles if not present
+    if (!document.getElementById('download-progress-styles')) {
+        const style = document.createElement('style');
+        style.id = 'download-progress-styles';
+        style.textContent = `
+            .download-progress-container {
+                width: 100%;
+                height: 8px;
+                background: var(--bg-secondary);
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .download-progress-bar {
+                height: 100%;
+                background: linear-gradient(90deg, #ff6b8a, #ff8fa3);
+                border-radius: 4px;
+                transition: width 0.3s ease;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // Start download
+    downloadFromDrive();
+}
+
+async function downloadFromDrive() {
+    const statusEl = document.getElementById('download-status');
+    const progressEl = document.getElementById('download-progress');
+    const emojiEl = document.getElementById('download-emoji');
+    const titleEl = document.getElementById('download-title');
+    const messageEl = document.getElementById('download-message');
+
+    try {
+        // Step 1: Get file list from Netlify Function
+        statusEl.textContent = '📋 Récupération de la liste des fichiers...';
+        progressEl.style.width = '5%';
+
+        const listResponse = await fetch('/.netlify/functions/download-drive?type=list');
+        if (!listResponse.ok) {
+            throw new Error('Impossible de récupérer la liste des fichiers');
+        }
+
+        const fileList = await listResponse.json();
+
+        if (fileList.error) {
+            throw new Error(fileList.error);
+        }
+
+        // Step 2: Download chat file
+        statusEl.textContent = '💬 Téléchargement du chat...';
+        progressEl.style.width = '10%';
+
+        const chatResponse = await fetch('/.netlify/functions/download-drive?type=chat');
+        if (!chatResponse.ok) {
+            const errorData = await chatResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || 'Erreur téléchargement chat');
+        }
+
+        const chatContent = await chatResponse.text();
+        await saveChatToCache(chatContent);
+
+        progressEl.style.width = '30%';
+
+        // Step 3: Download media files
+        const mediaFiles = fileList.media || [];
+        const totalMedia = mediaFiles.length;
+
+        if (totalMedia > 0) {
+            for (let i = 0; i < mediaFiles.length; i++) {
+                const file = mediaFiles[i];
+                statusEl.textContent = `📷 Média ${i + 1}/${totalMedia}: ${file.name}`;
+
+                const progress = 30 + (i / totalMedia) * 65;
+                progressEl.style.width = `${progress}%`;
+
+                try {
+                    const mediaResponse = await fetch(`/.netlify/functions/download-drive?type=download&fileId=${file.id}`);
+                    if (mediaResponse.ok) {
+                        const blob = await mediaResponse.blob();
+                        await saveMediaToCache(file.name, blob);
+                    }
+                } catch (mediaError) {
+                    console.warn(`Failed to download ${file.name}:`, mediaError);
+                    // Continue with other files
+                }
+            }
+        }
+
+        // Success!
+        progressEl.style.width = '100%';
+        emojiEl.textContent = '✅';
+        titleEl.textContent = 'Téléchargement terminé !';
+        messageEl.textContent = 'Les données ont été installées avec succès.';
+        statusEl.textContent = 'Chargement de la conversation...';
+
+        // Close modal and load chat
+        setTimeout(() => {
+            const modal = document.getElementById('download-modal');
+            if (modal) modal.remove();
+            loadCachedPredefinedChat();
+        }, 1000);
+
+    } catch (error) {
+        console.error('Download error:', error);
+
+        emojiEl.textContent = '❌';
+        titleEl.textContent = 'Erreur de téléchargement';
+        messageEl.textContent = error.message;
+        statusEl.innerHTML = `
+            <button id="retry-download" class="modal-btn" style="margin-top: 10px;">🔄 Réessayer</button>
+            <button id="manual-upload" class="modal-btn" style="margin-top: 10px; background: var(--bg-secondary); color: var(--text-primary);">📁 Upload manuel</button>
+        `;
+
+        document.getElementById('retry-download')?.addEventListener('click', () => {
+            progressEl.style.width = '0%';
+            emojiEl.textContent = '📥';
+            titleEl.textContent = 'Téléchargement des données';
+            messageEl.textContent = 'Nouvelle tentative...';
+            downloadFromDrive();
+        });
+
+        document.getElementById('manual-upload')?.addEventListener('click', () => {
+            document.getElementById('download-modal')?.remove();
+            showManualUploadModal();
+        });
+    }
+}
+
+// Fallback manual upload modal
+function showManualUploadModal() {
     const modal = document.createElement('div');
     modal.id = 'upload-predefined-modal';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
         <div class="modal-card" style="max-width: 480px;">
-            <div class="modal-emoji">📥</div>
-            <h2>Installation des données</h2>
-            <p>Première utilisation ! Télécharge le dossier depuis Google Drive puis sélectionne les fichiers ici.</p>
+            <div class="modal-emoji">📁</div>
+            <h2>Upload manuel</h2>
+            <p>Télécharge les fichiers depuis Google Drive et sélectionne-les ici.</p>
             
             <a href="https://drive.google.com/drive/folders/1eBlTsDxnTwpM7BNABTgnVDdQ-blksoPw?usp=sharing" 
                target="_blank" 
