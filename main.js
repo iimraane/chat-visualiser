@@ -29,12 +29,7 @@ const chatBackground = document.getElementById('chat-background');
 const bgInput = document.getElementById('bg-input');
 const bgReset = document.getElementById('bg-reset');
 
-// Predefined chat elements
-const predefinedBtn = document.getElementById('predefined-btn');
-const passwordModal = document.getElementById('password-modal');
-const passwordInput = document.getElementById('password-input');
-const passwordSubmit = document.getElementById('password-submit');
-const passwordError = document.getElementById('password-error');
+// Love popup elements
 const lovePopup = document.getElementById('love-popup');
 const lovePopupEmoji = document.getElementById('love-popup-emoji');
 const lovePopupText = document.getElementById('love-popup-text');
@@ -48,11 +43,8 @@ let allMessages = [];
 let participants = [];
 let currentUser = '';
 let isDark = false;
-let isPredefinedChat = false;
 let predefinedMediaMap = {};
 let participantRenames = {};
-let lovePopupTimers = [];
-let firstDayTriggered = false;
 let starredMessages = [];
 
 // Virtual scroll - optimized
@@ -269,13 +261,40 @@ startBtn.addEventListener('click', () => {
         uploadScreen.classList.remove('active');
         chatScreen.classList.add('active');
 
-        // Hide the predefined chat button
-        predefinedBtn.style.display = 'none';
+        // Check if this is a chat between Imrane and Habhoub
+        checkForSpecialChat();
 
         setupVirtualScroll();
         requestAnimationFrame(() => updateVirtualScroll());
     }, 50);
 });
+
+// Detect if chat is between Imrane and Habhoub
+function checkForSpecialChat() {
+    const participantNames = participants.map(p => p.toLowerCase());
+    const isImraneHabhoub = participantNames.some(p => p.includes('imrane') || p.includes('imran')) &&
+        participantNames.some(p => p.includes('habhoub') || p.includes('habib') || p.includes('houb'));
+
+    if (isImraneHabhoub && lovePopup) {
+        // Show love popup after a short delay
+        setTimeout(() => showLovePopup('💕', 'Bienvenue dans votre chat secret ! 💖'), 1500);
+    }
+}
+
+// Show love popup with message
+function showLovePopup(emoji, message) {
+    if (!lovePopup) return;
+
+    if (lovePopupEmoji) lovePopupEmoji.textContent = emoji;
+    if (lovePopupText) lovePopupText.textContent = message;
+    lovePopup.classList.remove('hidden');
+}
+
+if (lovePopupBtn) {
+    lovePopupBtn.addEventListener('click', () => {
+        lovePopup.classList.add('hidden');
+    });
+}
 
 // Parse messages
 function parseMessages(text) {
@@ -596,19 +615,27 @@ function performSearch(query) {
 
 function goToMatch(idx) {
     const msgIndex = searchMatches[idx];
-    // Scroll to the message position
-    chatArea.scrollTop = msgIndex * ITEM_HEIGHT - chatArea.clientHeight / 2;
 
-    // Wait for render then highlight
+    // Calculate scroll position to center the message
+    const scrollPosition = Math.max(0, msgIndex * ITEM_HEIGHT - chatArea.clientHeight / 2 + ITEM_HEIGHT / 2);
+    chatArea.scrollTop = scrollPosition;
+
+    // Wait for render then highlight and scroll into view
     requestAnimationFrame(() => {
         updateVirtualScroll();
-        requestAnimationFrame(() => {
+        setTimeout(() => {
             const el = contentContainer.querySelector(`[data-index="${msgIndex}"]`);
             if (el) {
-                el.classList.add('highlight');
-                setTimeout(() => el.classList.remove('highlight'), 2000);
+                // Scroll element to center of viewport
+                el.scrollIntoView({ block: 'center', behavior: 'auto' });
+
+                // Add highlight with delay for visual effect
+                setTimeout(() => {
+                    el.classList.add('highlight');
+                    setTimeout(() => el.classList.remove('highlight'), 1500);
+                }, 100);
             }
-        });
+        }, 50);
     });
 
     searchCount.textContent = `${idx + 1} / ${searchMatches.length}`;
@@ -1361,133 +1388,7 @@ function getMediaExtension(type) {
     }
 }
 
-// ========== LOVE POPUP SYSTEM ==========
-
-const LOVE_POPUPS = [
-    {
-        delay: 5 * 60 * 1000, // 5 minutes
-        emoji: '💖',
-        text: 'Je t\'aime ma chérie et tu es la plus belle femme du monde',
-        button: 'Oui j\'en suis persuadée',
-        confetti: true
-    },
-    {
-        delay: 15 * 60 * 1000, // 15 minutes
-        emoji: '😍',
-        text: 'T\'aimes bien nos petites conv hein, moi aussi je les adore',
-        button: 'J\'adore toujours voir nos discussions',
-        confetti: false
-    }
-];
-
-const FIRST_DAY_POPUP = {
-    emoji: '🥰',
-    text: 'Oh waw le premier jour, le meilleur de ma vie',
-    button: 'Je suis d\'accord',
-    confetti: true
-};
-
-function startLovePopupTimers() {
-    // Clear any existing timers
-    lovePopupTimers.forEach(t => clearTimeout(t));
-    lovePopupTimers = [];
-
-    // Check localStorage for shown popups
-    const shownPopups = JSON.parse(localStorage.getItem('love-popups-shown') || '[]');
-
-    LOVE_POPUPS.forEach((popup, index) => {
-        if (!shownPopups.includes(index)) {
-            const timer = setTimeout(() => {
-                showLovePopup(popup, index);
-            }, popup.delay);
-            lovePopupTimers.push(timer);
-        }
-    });
-}
-
-function showLovePopup(popup, index) {
-    lovePopupEmoji.textContent = popup.emoji;
-    lovePopupText.textContent = popup.text;
-    lovePopupBtn.textContent = popup.button;
-
-    lovePopup.classList.remove('hidden');
-
-    // One-time handler for close
-    const closeHandler = () => {
-        lovePopup.classList.add('hidden');
-        if (popup.confetti) {
-            launchHeartConfetti();
-        }
-
-        // Mark as shown
-        const shownPopups = JSON.parse(localStorage.getItem('love-popups-shown') || '[]');
-        if (index !== undefined && !shownPopups.includes(index)) {
-            shownPopups.push(index);
-            localStorage.setItem('love-popups-shown', JSON.stringify(shownPopups));
-        }
-
-        lovePopupBtn.removeEventListener('click', closeHandler);
-    };
-
-    lovePopupBtn.addEventListener('click', closeHandler);
-}
-
-function setupFirstDayWatcher() {
-    // Check if first day popup has been shown
-    if (localStorage.getItem('first-day-popup-shown')) {
-        firstDayTriggered = true;
-        return;
-    }
-
-    // Override the goToMatch function to check for first day
-    const originalGoToMatch = goToMatch;
-    window.goToMatch = function (idx) {
-        originalGoToMatch(idx);
-        checkFirstDay();
-    };
-
-    // Also check on scroll
-    const originalUpdateVirtualScroll = updateVirtualScroll;
-    window.updateVirtualScroll = function () {
-        originalUpdateVirtualScroll();
-        if (isPredefinedChat) {
-            checkFirstDay();
-        }
-    };
-}
-
-function checkFirstDay() {
-    if (firstDayTriggered) return;
-
-    // Check if current visible messages include the first day
-    for (let i = visibleStart; i < Math.min(visibleEnd, allMessages.length); i++) {
-        const msg = allMessages[i];
-        if (msg && msg.date === FIRST_DAY_DATE) {
-            firstDayTriggered = true;
-            showFirstDayPopup();
-            break;
-        }
-    }
-}
-
-function showFirstDayPopup() {
-    lovePopupEmoji.textContent = FIRST_DAY_POPUP.emoji;
-    lovePopupText.textContent = FIRST_DAY_POPUP.text;
-    lovePopupBtn.textContent = FIRST_DAY_POPUP.button;
-
-    lovePopup.classList.remove('hidden');
-
-    const closeHandler = () => {
-        lovePopup.classList.add('hidden');
-        if (FIRST_DAY_POPUP.confetti) {
-            launchHeartConfetti();
-        }
-        localStorage.setItem('first-day-popup-shown', 'true');
-        lovePopupBtn.removeEventListener('click', closeHandler);
-    };
-
-    lovePopupBtn.addEventListener('click', closeHandler);
-}
+// [Old love popup system removed - replaced by advanced system at end of file]
 
 // Load renames on init
 loadRenames();
@@ -1709,4 +1610,439 @@ const originalSetupVirtualScroll = setupVirtualScroll;
 setupVirtualScroll = function () {
     originalSetupVirtualScroll();
     updateStarredList();
+
+    // Start love popup system if Imrane/Habhoub chat detected
+    checkForSpecialChatAndStartLove();
 };
+
+// ========== LOVE POPUP INTERACTIVE SYSTEM ==========
+
+let lovePopupTimer = null;
+let isSpecialChat = false;
+let chatStats = { totalMessages: 0, amourCount: 0, mdrCount: 0, jetaimeCount: 0 };
+let scrollSpeed = { lastPosition: 0, lastTime: 0, speed: 0 };
+let hasScrolledToTop = false;
+
+// Check if this is a special Imrane/Habhoub chat
+function checkForSpecialChatAndStartLove() {
+    const participantNames = participants.map(p => p.toLowerCase());
+    isSpecialChat = participantNames.some(p => p.includes('imrane') || p.includes('imran')) &&
+        participantNames.some(p => p.includes('habhoub') || p.includes('habib') || p.includes('houb'));
+
+    if (isSpecialChat) {
+        // Calculate chat stats
+        calculateChatStats();
+
+        // Start all love triggers
+        startLovePopupTimer();
+        setupSearchEasterEggs();
+        setupScrollTriggers();
+        setupShakeDetection();
+        checkTimeBasedPopups();
+    }
+}
+
+// Calculate chat statistics
+function calculateChatStats() {
+    chatStats.totalMessages = allMessages.length;
+    allMessages.forEach(msg => {
+        const text = msg.text.toLowerCase();
+        chatStats.amourCount += (text.match(/amour/gi) || []).length;
+        chatStats.mdrCount += (text.match(/mdr|lol|haha|😂|🤣/gi) || []).length;
+        chatStats.jetaimeCount += (text.match(/je t'?aime|jtm|i love you/gi) || []).length;
+    });
+}
+
+// ========== LOVE POPUP DISPLAY ==========
+
+function showLovePopupAdvanced(config) {
+    if (!lovePopup) return;
+
+    const { emoji, text, subtext, buttons, onButton, autoClose } = config;
+
+    // Set content
+    if (lovePopupEmoji) lovePopupEmoji.textContent = emoji || '💕';
+    if (lovePopupText) lovePopupText.textContent = text || '';
+
+    const subtextEl = document.getElementById('love-popup-subtext');
+    if (subtextEl) subtextEl.textContent = subtext || '';
+
+    // Create buttons
+    const buttonsContainer = document.getElementById('love-popup-buttons');
+    if (buttonsContainer) {
+        buttonsContainer.innerHTML = '';
+
+        const buttonList = buttons || [{ label: 'OK ❤️', action: 'close' }];
+        buttonList.forEach((btn, idx) => {
+            const button = document.createElement('button');
+            button.className = `love-popup-btn ${btn.secondary ? 'secondary' : ''}`;
+            button.textContent = btn.label;
+            button.addEventListener('click', () => {
+                if (onButton) onButton(btn.action, idx);
+                if (btn.action === 'close' || !btn.keepOpen) {
+                    lovePopup.classList.add('hidden');
+                }
+            });
+            buttonsContainer.appendChild(button);
+        });
+    }
+
+    lovePopup.classList.remove('hidden');
+
+    // Auto-close
+    if (autoClose) {
+        setTimeout(() => lovePopup.classList.add('hidden'), autoClose);
+    }
+
+    // Trigger confetti for special popups
+    if (config.confetti && typeof confetti !== 'undefined') {
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+    }
+}
+
+// ========== RANDOM POPUPS (5-15 minutes) ==========
+
+const LOVE_POPUPS = [
+    // Quiz Compliment
+    {
+        emoji: '🎯',
+        text: "Alerte ! Tu viens de passer trop de temps à lire nos bêtises.",
+        subtext: "Quel est le truc que je préfère chez toi ?",
+        buttons: [
+            { label: 'Mon sourire 😊', action: 'quiz' },
+            { label: 'Mon rire 😄', action: 'quiz' },
+            { label: 'Mon intelligence 🧠', action: 'quiz' }
+        ],
+        onButton: () => {
+            setTimeout(() => {
+                showLovePopupAdvanced({
+                    emoji: '❤️',
+                    text: "Mauvaise réponse...",
+                    subtext: "C'est TOUT TOI que je préfère ! 💖",
+                    confetti: true
+                });
+            }, 300);
+        }
+    },
+    // Rappel de stats
+    {
+        emoji: '📊',
+        text: `Tu savais qu'on s'est envoyé plus de ${chatStats.totalMessages || '50000'} messages ?`,
+        subtext: "Ça fait beaucoup de 'on mange quoi ?' ça...",
+        buttons: [{ label: "Et c'est pas fini ! 🥰", action: 'close' }],
+        confetti: true
+    },
+    // La Prédiction
+    {
+        emoji: '🔮',
+        text: "Je prédis qu'à cet instant précis...",
+        subtext: "Tu es en train de sourire devant ton écran.",
+        buttons: [
+            { label: "C'est vrai 😊", action: 'close' },
+            { label: "Grillée 🙈", action: 'close' }
+        ]
+    },
+    // Question éclair
+    {
+        emoji: '⚡',
+        text: "Question éclair !",
+        subtext: "Quelle est ma couleur préférée ?",
+        buttons: [
+            { label: 'Bleu 💙', action: 'quiz' },
+            { label: 'Rouge ❤️', action: 'quiz' },
+            { label: 'Vert 💚', action: 'quiz' }
+        ],
+        onButton: () => {
+            setTimeout(() => {
+                showLovePopupAdvanced({
+                    emoji: '🤷‍♂️',
+                    text: "On s'en fiche de la couleur...",
+                    subtext: "Par contre, je t'aime ❤️",
+                    confetti: true
+                });
+            }, 300);
+        }
+    },
+    // Bon pour un câlin
+    {
+        emoji: '🎫',
+        text: "Félicitations !",
+        subtext: "En lisant jusqu'ici, tu as débloqué un coupon 'Massage de 10 minutes'",
+        buttons: [{ label: "Je capture l'écran pour preuve ! 📸", action: 'close' }]
+    },
+    // Data Love
+    {
+        emoji: '💝',
+        get text() { return `Petite stat inutile : Le mot 'amour' apparaît ${chatStats.amourCount || '1428'} fois dans cette conversation.`; },
+        subtext: "C'est beau non ?",
+        buttons: [{ label: "On est trop mignons 🥰", action: 'close' }]
+    },
+    // La Roulette
+    {
+        emoji: '🎰',
+        text: "Tu veux voir un message au hasard ?",
+        buttons: [
+            { label: "Non ça ira je lis là ! 📖", action: 'close' },
+            { label: "Téléporte-moi ! 🚀", action: 'teleport' }
+        ],
+        onButton: (action) => {
+            if (action === 'teleport' && allMessages.length > 0) {
+                const randomIdx = Math.floor(Math.random() * allMessages.length);
+                goToMessageIndex(randomIdx);
+            }
+        }
+    },
+    // Jet'aime stats
+    {
+        emoji: '💕',
+        get text() { return `J'ai écrit 'Je t'aime' ${chatStats.jetaimeCount || '850'} fois dans cette conversation.`; },
+        subtext: "Et ce n'est toujours pas assez !",
+        buttons: [{ label: "Moi aussi je t'aime 💖", action: 'close' }],
+        confetti: true
+    }
+];
+
+function startLovePopupTimer() {
+    // Random interval between 5-15 minutes (300000-900000 ms)
+    const randomDelay = () => Math.floor(Math.random() * (15 - 5 + 1) + 5) * 60 * 1000;
+
+    function scheduleNext() {
+        const delay = randomDelay();
+        console.log(`Next love popup in ${Math.round(delay / 60000)} minutes`);
+
+        lovePopupTimer = setTimeout(() => {
+            if (isSpecialChat && chatScreen.classList.contains('active')) {
+                const popup = LOVE_POPUPS[Math.floor(Math.random() * LOVE_POPUPS.length)];
+                showLovePopupAdvanced(popup);
+            }
+            scheduleNext();
+        }, delay);
+    }
+
+    scheduleNext();
+}
+
+// ========== TIME-BASED POPUPS ==========
+
+function checkTimeBasedPopups() {
+    const hour = new Date().getHours();
+    const day = new Date().getDate();
+
+    // Moiniversaire (le 6 de chaque mois)
+    if (day === 6) {
+        setTimeout(() => {
+            showLovePopupAdvanced({
+                emoji: '🎂',
+                text: "Joyeux Moiniversaire mon cœur !",
+                subtext: "Encore un mois de bonheur ❤️",
+                confetti: true
+            });
+        }, 3000);
+        return;
+    }
+
+    // Message de minuit (23h+)
+    if (hour >= 23) {
+        setTimeout(() => {
+            showLovePopupAdvanced({
+                emoji: '🌙',
+                text: "Il est tard, qu'est-ce que tu fais encore ici ?",
+                subtext: "Va dormir (mais sache que je t'aime même quand tu es fatiguée)",
+                buttons: [{ label: "D'accord mon amour 🌙", action: 'close' }]
+            });
+        }, 3000);
+        return;
+    }
+
+    // Oiseau de nuit (1h-5h du matin)
+    if (hour >= 1 && hour < 5) {
+        setTimeout(() => {
+            showLovePopupAdvanced({
+                emoji: '😴',
+                text: "Tu n'arrives pas à dormir ?",
+                subtext: "Viens on se retrouve dans nos rêves. Bonne nuit mon ange 💫",
+                buttons: [{ label: "À tout à l'heure dans mes rêves 💕", action: 'close' }]
+            });
+        }, 2000);
+        return;
+    }
+
+    // Bonjour mon amour (6h-9h)
+    if (hour >= 6 && hour < 9) {
+        setTimeout(() => {
+            showLovePopupAdvanced({
+                emoji: '☀️',
+                text: "Bien dormi ?",
+                subtext: "Rien de mieux que de commencer la journée avec nos souvenirs ✨",
+                buttons: [{ label: "Bonjour mon amour ☕", action: 'close' }]
+            });
+        }, 2000);
+    }
+}
+
+// ========== SEARCH EASTER EGGS ==========
+
+const SEARCH_TRIGGERS = {
+    'mariage': { emoji: '💍', text: "Un jour...", confetti: true },
+    'enfant': { emoji: '👶', text: "Un jour peut-être... 🥹", confetti: true },
+    'je t\'aime': { emoji: '💖', text: "Moi aussi je t'aime ! 💕", confetti: true },
+    'coquine': { emoji: '😳', effect: 'flashRed' },
+    'coquin': { emoji: '😏', effect: 'flashRed' },
+    'preuve': { emoji: '⚖️', text: "Ah, tu cherches des dossiers ? J'ai le droit à un avocat ?" },
+    'menteur': { emoji: '🕵️', text: "Tu fais ta détective ? 🔍" },
+    'faim': { emoji: '🍕', effect: 'foodRain' },
+    'manger': { emoji: '🍔', effect: 'foodRain' },
+    'burger': { emoji: '🍔', effect: 'foodRain' },
+    'sushi': { emoji: '🍣', effect: 'foodRain' },
+    'pizza': { emoji: '🍕', effect: 'foodRain' },
+    'bisou': { emoji: '💋', text: "Un bisou pour toi ! 💋💋💋", confetti: true },
+    'baiser': { emoji: '💋', text: "Des bisous partout ! 💋", confetti: true }
+};
+
+function setupSearchEasterEggs() {
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+
+        for (const [trigger, config] of Object.entries(SEARCH_TRIGGERS)) {
+            if (query.includes(trigger)) {
+                handleSearchEasterEgg(config);
+                break;
+            }
+        }
+    });
+}
+
+function handleSearchEasterEgg(config) {
+    if (config.effect === 'flashRed') {
+        document.body.classList.add('flash-red');
+        setTimeout(() => document.body.classList.remove('flash-red'), 600);
+    } else if (config.effect === 'foodRain') {
+        emojiRain(['🍕', '🍔', '🍟', '🍣', '🌮', '🍩', '🍪', '🧁']);
+    } else if (config.text) {
+        showLovePopupAdvanced({
+            emoji: config.emoji,
+            text: config.text,
+            confetti: config.confetti,
+            autoClose: 3000
+        });
+    }
+
+    if (config.confetti && typeof confetti !== 'undefined') {
+        confetti({ particleCount: 50, spread: 50, origin: { y: 0.7 } });
+    }
+}
+
+// ========== SCROLL TRIGGERS ==========
+
+function setupScrollTriggers() {
+    let scrollTimer = null;
+
+    chatArea.addEventListener('scroll', () => {
+        // Track scroll speed
+        const now = Date.now();
+        const currentPos = chatArea.scrollTop;
+        const timeDiff = now - scrollSpeed.lastTime;
+        const posDiff = Math.abs(currentPos - scrollSpeed.lastPosition);
+
+        scrollSpeed.speed = timeDiff > 0 ? posDiff / timeDiff : 0;
+        scrollSpeed.lastPosition = currentPos;
+        scrollSpeed.lastTime = now;
+
+        // Fast scroll detection (5000px in less than 3 seconds)
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            if (scrollSpeed.speed > 5) { // pixels per ms
+                showLovePopupAdvanced({
+                    emoji: '🏎️',
+                    text: "Wow doucement Flash McQueen !",
+                    subtext: "Tu cherches un truc précis ou tu revisses toute notre vie en accéléré ? 😂",
+                    buttons: [{ label: "Je cherche une pépite 💎", action: 'close' }]
+                });
+            }
+        }, 500);
+
+        // First message (Big Bang)
+        if (visibleStart === 0 && !hasScrolledToTop) {
+            hasScrolledToTop = true;
+            setTimeout(() => {
+                showLovePopupAdvanced({
+                    emoji: '💥',
+                    text: "Le Big Bang de notre relation !",
+                    subtext: "Tout a commencé ici... ✨",
+                    confetti: true
+                });
+            }, 1000);
+        }
+    }, { passive: true });
+}
+
+// ========== SHAKE DETECTION (Mobile) ==========
+
+function setupShakeDetection() {
+    let lastX = 0, lastY = 0, lastZ = 0;
+    let lastShake = 0;
+    const threshold = 15;
+
+    if (window.DeviceMotionEvent) {
+        window.addEventListener('devicemotion', (e) => {
+            const x = e.accelerationIncludingGravity?.x || 0;
+            const y = e.accelerationIncludingGravity?.y || 0;
+            const z = e.accelerationIncludingGravity?.z || 0;
+
+            const change = Math.abs(x - lastX) + Math.abs(y - lastY) + Math.abs(z - lastZ);
+
+            if (change > threshold && Date.now() - lastShake > 3000) {
+                lastShake = Date.now();
+                emojiRain(['❤️', '💕', '💗', '💖', '💝', '✨', '🌟']);
+            }
+
+            lastX = x; lastY = y; lastZ = z;
+        });
+    }
+}
+
+// ========== EMOJI RAIN EFFECT ==========
+
+function emojiRain(emojis) {
+    const container = document.createElement('div');
+    container.className = 'emoji-rain';
+    document.body.appendChild(container);
+
+    for (let i = 0; i < 30; i++) {
+        setTimeout(() => {
+            const drop = document.createElement('div');
+            drop.className = 'emoji-drop';
+            drop.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            drop.style.left = Math.random() * 100 + 'vw';
+            drop.style.animationDuration = (Math.random() * 2 + 2) + 's';
+            container.appendChild(drop);
+
+            setTimeout(() => drop.remove(), 4000);
+        }, i * 100);
+    }
+
+    setTimeout(() => container.remove(), 5000);
+}
+
+// ========== HELPER: Go to message index ==========
+
+function goToMessageIndex(idx) {
+    const scrollPosition = Math.max(0, idx * ITEM_HEIGHT - chatArea.clientHeight / 2 + ITEM_HEIGHT / 2);
+    chatArea.scrollTop = scrollPosition;
+
+    requestAnimationFrame(() => {
+        updateVirtualScroll();
+        setTimeout(() => {
+            const el = contentContainer.querySelector(`[data-index="${idx}"]`);
+            if (el) {
+                el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                setTimeout(() => {
+                    el.classList.add('highlight');
+                    setTimeout(() => el.classList.remove('highlight'), 1500);
+                }, 100);
+            }
+        }, 50);
+    });
+
+    lovePopup?.classList.add('hidden');
+}

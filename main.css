@@ -5,6 +5,8 @@
 }
 
 html {
+    height: 100%;
+    height: -webkit-fill-available;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 }
@@ -12,6 +14,9 @@ html {
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     height: 100vh;
+    height: -webkit-fill-available;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
     overflow: hidden;
     background: #111;
     -webkit-user-select: none;
@@ -291,11 +296,7 @@ body.dark .floating-date {
     position: relative;
     z-index: 1;
     -webkit-overflow-scrolling: touch;
-    will-change: scroll-position;
-    scroll-behavior: smooth;
-    overscroll-behavior: contain;
     overscroll-behavior-y: contain;
-    -ms-overflow-style: -ms-autohiding-scrollbar;
 }
 
 #spacer-top,
@@ -1215,4 +1216,176 @@ body.dark .context-menu-item:hover {
 
 .context-menu-item span:first-child {
     font-size: 16px;
+}
+
+/* ========== LOVE POPUP SYSTEM ========== */
+.love-popup-card {
+    background: linear-gradient(135deg, rgba(255, 107, 138, 0.95), rgba(255, 143, 163, 0.95));
+    backdrop-filter: blur(20px);
+    padding: 2rem 2.5rem;
+    border-radius: 24px;
+    text-align: center;
+    box-shadow: 0 25px 80px rgba(255, 107, 138, 0.4), 0 0 40px rgba(255, 107, 138, 0.2);
+    max-width: 360px;
+    width: 90%;
+    animation: lovePopIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+@keyframes lovePopIn {
+    0% {
+        transform: scale(0.5) rotate(-5deg);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.05) rotate(2deg);
+    }
+
+    100% {
+        transform: scale(1) rotate(0);
+        opacity: 1;
+    }
+}
+
+.love-popup-emoji {
+    font-size: 4rem;
+    margin-bottom: 0.8rem;
+    animation: loveBounce 2s infinite;
+}
+
+@keyframes loveBounce {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.15);
+    }
+}
+
+.love-popup-text {
+    color: white;
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.love-popup-subtext {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.95rem;
+    margin-bottom: 1.2rem;
+    font-style: italic;
+}
+
+.love-popup-subtext:empty {
+    display: none;
+}
+
+.love-popup-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 1rem;
+}
+
+.love-popup-btn {
+    background: white;
+    color: #ff6b8a;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 30px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    min-width: 100px;
+}
+
+.love-popup-btn:hover {
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.love-popup-btn:active {
+    transform: scale(0.98);
+}
+
+.love-popup-btn.secondary {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.love-popup-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+/* Special flash effect for easter eggs */
+.flash-screen {
+    animation: flashScreen 0.5s ease-out;
+}
+
+@keyframes flashScreen {
+    0% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(2);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+.flash-red {
+    animation: flashRed 0.6s ease-out;
+}
+
+@keyframes flashRed {
+
+    0%,
+    100% {
+        background-color: inherit;
+    }
+
+    50% {
+        background-color: rgba(255, 0, 0, 0.3);
+    }
+}
+
+/* Emoji rain container */
+.emoji-rain {
+    position: fixed;
+    top: -50px;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.emoji-drop {
+    position: absolute;
+    font-size: 2rem;
+    animation: emojiDrop 3s linear forwards;
+}
+
+@keyframes emojiDrop {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
 }

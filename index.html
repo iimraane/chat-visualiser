@@ -118,29 +118,17 @@
         </div>
     </div>
 
-    <!-- Floating Heart Button -->
-    <button id="predefined-btn" class="floating-heart-btn" title="Chat prédéfini">💕</button>
 
-    <!-- Password Modal -->
-    <div id="password-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <button id="password-close" class="modal-close">✕</button>
-            <div class="modal-emoji">🔐</div>
-            <h2>Accès Protégé</h2>
-            <p>Entre le mot de passe pour accéder au chat secret</p>
-            <input type="text" id="password-input" class="modal-input" placeholder="Mot de passe..." autocomplete="off"
-                autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text">
-            <p id="password-error" class="password-error hidden">Mot de passe incorrect 💔</p>
-            <button id="password-submit" class="modal-btn">Valider</button>
-        </div>
-    </div>
 
-    <!-- Love Popup Modal -->
+    <!-- Love Popup Modal (Interactive) -->
     <div id="love-popup" class="modal-overlay hidden">
-        <div class="love-popup-card">
+        <div class="love-popup-card" id="love-popup-card">
             <div class="love-popup-emoji" id="love-popup-emoji">💖</div>
             <p class="love-popup-text" id="love-popup-text">Message d'amour</p>
-            <button id="love-popup-btn" class="love-popup-btn">Confirmer</button>
+            <p class="love-popup-subtext" id="love-popup-subtext"></p>
+            <div class="love-popup-buttons" id="love-popup-buttons">
+                <button class="love-popup-btn" id="love-popup-btn">OK</button>
+            </div>
         </div>
     </div>
 
