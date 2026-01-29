@@ -863,7 +863,7 @@ async function validatePassword() {
         if (hasCached) {
             loadCachedPredefinedChat();
         } else {
-            showDownloadModal();
+            showLoadingModal();
         }
     } else {
         // Wrong password - broken hearts
@@ -975,166 +975,200 @@ async function getAllMediaFromCache() {
     });
 }
 
-// ========== AUTO DOWNLOAD FROM GOOGLE DRIVE ==========
+// ========== GOOGLE DRIVE DIRECT STREAMING ==========
 
-function showDownloadModal() {
+// Store the media file list for URL generation
+let driveMediaFiles = [];
+
+function showLoadingModal() {
     const modal = document.createElement('div');
-    modal.id = 'download-modal';
+    modal.id = 'loading-modal';
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-        <div class="modal-card" style="max-width: 420px;">
-            <div class="modal-emoji" id="download-emoji">📥</div>
-            <h2 id="download-title">Téléchargement des données</h2>
-            <p id="download-message">Première utilisation ! Téléchargement automatique en cours...</p>
-            
-            <div class="download-progress-container" style="margin: 20px 0;">
-                <div class="download-progress-bar" id="download-progress" style="width: 0%;"></div>
-            </div>
-            
-            <p id="download-status" style="font-size: 13px; color: var(--text-secondary);">Connexion...</p>
+        <div class="modal-card" style="max-width: 380px;">
+            <div class="modal-emoji" id="loading-emoji">�</div>
+            <h2 id="loading-title">Chargement...</h2>
+            <p id="loading-message">Connexion à la discussion secrète...</p>
+            <div class="loading-spinner" style="margin: 20px auto; width: 40px; height: 40px; border: 3px solid var(--bg-secondary); border-top-color: #ff6b8a; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p id="loading-status" style="font-size: 13px; color: var(--text-secondary);"></p>
         </div>
     `;
 
-    document.body.appendChild(modal);
-
-    // Add progress bar styles if not present
-    if (!document.getElementById('download-progress-styles')) {
+    // Add spinner animation
+    if (!document.getElementById('spinner-styles')) {
         const style = document.createElement('style');
-        style.id = 'download-progress-styles';
-        style.textContent = `
-            .download-progress-container {
-                width: 100%;
-                height: 8px;
-                background: var(--bg-secondary);
-                border-radius: 4px;
-                overflow: hidden;
-            }
-            .download-progress-bar {
-                height: 100%;
-                background: linear-gradient(90deg, #ff6b8a, #ff8fa3);
-                border-radius: 4px;
-                transition: width 0.3s ease;
-            }
-        `;
+        style.id = 'spinner-styles';
+        style.textContent = `@keyframes spin { to { transform: rotate(360deg); } }`;
         document.head.appendChild(style);
     }
 
-    // Start download
-    downloadFromDrive();
+    document.body.appendChild(modal);
+    loadFromGoogleDrive();
 }
 
-async function downloadFromDrive() {
-    const statusEl = document.getElementById('download-status');
-    const progressEl = document.getElementById('download-progress');
-    const emojiEl = document.getElementById('download-emoji');
-    const titleEl = document.getElementById('download-title');
-    const messageEl = document.getElementById('download-message');
+async function loadFromGoogleDrive() {
+    const statusEl = document.getElementById('loading-status');
+    const emojiEl = document.getElementById('loading-emoji');
+    const titleEl = document.getElementById('loading-title');
+    const messageEl = document.getElementById('loading-message');
 
     try {
-        // Step 1: Get file list from Netlify Function
-        statusEl.textContent = '📋 Récupération de la liste des fichiers...';
-        progressEl.style.width = '5%';
+        // Step 1: Get file list from Google Drive
+        statusEl.textContent = '📋 Récupération des fichiers...';
 
-        const listResponse = await fetch('/.netlify/functions/download-drive?type=list');
+        const listResponse = await fetch('/.netlify/functions/download-drive?action=list');
         if (!listResponse.ok) {
-            throw new Error('FALLBACK_TO_MANUAL');
+            throw new Error('Impossible de se connecter à Google Drive');
         }
 
         const fileList = await listResponse.json();
 
-        // Check if chat ID is configured
-        if (!fileList.chat?.id || fileList.chat.id === 'YOUR_CHAT_FILE_ID_HERE' || fileList.error) {
-            // IDs not configured, switch to manual upload
-            document.getElementById('download-modal')?.remove();
-            showManualUploadModal();
-            return;
+        if (!fileList.success || !fileList.chat) {
+            throw new Error('Fichier chat non trouvé dans le dossier');
         }
 
-        // Step 2: Download chat file
-        statusEl.textContent = '💬 Téléchargement du chat...';
-        progressEl.style.width = '10%';
+        // Store media files for later URL generation
+        driveMediaFiles = fileList.media || [];
+        console.log(`Found ${driveMediaFiles.length} media files`);
 
-        const chatResponse = await fetch('/.netlify/functions/download-drive?type=chat');
+        // Step 2: Load chat content
+        statusEl.textContent = '💬 Chargement de la conversation...';
+
+        const chatResponse = await fetch('/.netlify/functions/download-drive?action=chat');
         if (!chatResponse.ok) {
-            const errorData = await chatResponse.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Erreur téléchargement chat');
+            throw new Error('Erreur chargement du chat');
         }
 
         const chatContent = await chatResponse.text();
-        await saveChatToCache(chatContent);
 
-        progressEl.style.width = '30%';
+        // Close modal
+        document.getElementById('loading-modal')?.remove();
 
-        // Step 3: Download media files
-        const mediaFiles = fileList.media || [];
-        const totalMedia = mediaFiles.length;
-
-        if (totalMedia > 0) {
-            for (let i = 0; i < mediaFiles.length; i++) {
-                const file = mediaFiles[i];
-                statusEl.textContent = `📷 Média ${i + 1}/${totalMedia}: ${file.name}`;
-
-                const progress = 30 + (i / totalMedia) * 65;
-                progressEl.style.width = `${progress}%`;
-
-                try {
-                    const mediaResponse = await fetch(`/.netlify/functions/download-drive?type=download&fileId=${file.id}`);
-                    if (mediaResponse.ok) {
-                        const blob = await mediaResponse.blob();
-                        await saveMediaToCache(file.name, blob);
-                    }
-                } catch (mediaError) {
-                    console.warn(`Failed to download ${file.name}:`, mediaError);
-                    // Continue with other files
-                }
-            }
-        }
-
-        // Success!
-        progressEl.style.width = '100%';
-        emojiEl.textContent = '✅';
-        titleEl.textContent = 'Téléchargement terminé !';
-        messageEl.textContent = 'Les données ont été installées avec succès.';
-        statusEl.textContent = 'Chargement de la conversation...';
-
-        // Close modal and load chat
-        setTimeout(() => {
-            const modal = document.getElementById('download-modal');
-            if (modal) modal.remove();
-            loadCachedPredefinedChat();
-        }, 1000);
+        // Load the chat directly (no caching)
+        loadPredefinedChatDirect(chatContent);
 
     } catch (error) {
-        console.error('Download error:', error);
-
-        // If fallback requested or network error, go directly to manual upload
-        if (error.message === 'FALLBACK_TO_MANUAL' || error.message.includes('fetch')) {
-            document.getElementById('download-modal')?.remove();
-            showManualUploadModal();
-            return;
-        }
+        console.error('Loading error:', error);
 
         emojiEl.textContent = '❌';
-        titleEl.textContent = 'Erreur de téléchargement';
+        titleEl.textContent = 'Erreur';
         messageEl.textContent = error.message;
         statusEl.innerHTML = `
-            <button id="retry-download" class="modal-btn" style="margin-top: 10px;">🔄 Réessayer</button>
+            <button id="retry-load" class="modal-btn" style="margin-top: 10px;">🔄 Réessayer</button>
             <button id="manual-upload" class="modal-btn" style="margin-top: 10px; background: var(--bg-secondary); color: var(--text-primary);">📁 Upload manuel</button>
         `;
 
-        document.getElementById('retry-download')?.addEventListener('click', () => {
-            progressEl.style.width = '0%';
-            emojiEl.textContent = '📥';
-            titleEl.textContent = 'Téléchargement des données';
+        document.getElementById('retry-load')?.addEventListener('click', () => {
+            emojiEl.textContent = '💕';
+            titleEl.textContent = 'Chargement...';
             messageEl.textContent = 'Nouvelle tentative...';
-            downloadFromDrive();
+            statusEl.innerHTML = '<div class="loading-spinner" style="margin: 10px auto; width: 30px; height: 30px; border: 3px solid var(--bg-secondary); border-top-color: #ff6b8a; border-radius: 50%; animation: spin 1s linear infinite;"></div>';
+            loadFromGoogleDrive();
         });
 
         document.getElementById('manual-upload')?.addEventListener('click', () => {
-            document.getElementById('download-modal')?.remove();
+            document.getElementById('loading-modal')?.remove();
             showManualUploadModal();
         });
     }
+}
+
+// Load predefined chat directly without caching
+function loadPredefinedChatDirect(chatContent) {
+    uploadScreen.classList.remove('active');
+    chatScreen.classList.add('active');
+    predefinedBtn.style.display = 'none';
+
+    chatText = chatContent;
+    isPredefinedChat = true;
+
+    // Parse messages
+    parseMessages(chatText);
+
+    if (allMessages.length === 0) {
+        statusText.textContent = 'No messages found.';
+        return;
+    }
+
+    // Index Google Drive media files for matching
+    indexDriveMedia(driveMediaFiles);
+
+    // Assign media to messages with streaming URLs
+    assignDriveMediaToMessages();
+
+    currentUser = participants[0] || '';
+    updateParticipantsList();
+    loadRenames();
+    setupRenameInputs();
+
+    setupVirtualScroll();
+    requestAnimationFrame(() => updateVirtualScroll());
+
+    // Start love popup timers
+    startLovePopupTimers();
+    setupFirstDayWatcher();
+}
+
+// Index Google Drive media files by date and type
+function indexDriveMedia(files) {
+    mediaByDate = {};
+
+    files.forEach(file => {
+        const match = file.name.match(/^(\d+)-(PHOTO|VIDEO|AUDIO|STICKER)-(\d{4}-\d{2}-\d{2})-(\d{2})-(\d{2})-(\d{2})/i);
+
+        if (match) {
+            const type = match[2].toLowerCase();
+            const dateKey = match[3];
+            const hour = parseInt(match[4]);
+            const minute = parseInt(match[5]);
+            const second = parseInt(match[6]);
+            const timeInSeconds = hour * 3600 + minute * 60 + second;
+
+            if (!mediaByDate[dateKey]) {
+                mediaByDate[dateKey] = { photo: [], video: [], audio: [], sticker: [] };
+            }
+
+            mediaByDate[dateKey][type].push({
+                file: { name: file.name }, // Fake file object for compatibility
+                fileId: file.id,
+                fileName: file.name,
+                timeInSeconds,
+                hour, minute, second
+            });
+        }
+    });
+
+    // Sort by filename
+    for (let date in mediaByDate) {
+        for (let type in mediaByDate[date]) {
+            mediaByDate[date][type].sort((a, b) => a.fileName.localeCompare(b.fileName));
+        }
+    }
+
+    console.log('Media indexed from Google Drive:', Object.keys(mediaByDate).length, 'dates');
+}
+
+// Assign media to messages using streaming URLs
+function assignDriveMediaToMessages() {
+    resetMediaCounters();
+
+    allMessages.forEach((msg) => {
+        const isOmitted = /omis|omitted|absente?|<media|<média/i.test(msg.text);
+        if (isOmitted) {
+            const dateKey = convertDateToKey(msg.date);
+            const mediaType = detectMediaType(msg.text);
+
+            if (dateKey && mediaType) {
+                const media = getNextMedia(dateKey, mediaType);
+                if (media) {
+                    // Create streaming URL
+                    msg.media = media.file;
+                    msg.mediaUrl = `/.netlify/functions/download-drive?action=media&fileName=${encodeURIComponent(media.fileName)}`;
+                    msg.mediaUncertain = false;
+                }
+            }
+        }
+    });
 }
 
 // Fallback manual upload modal

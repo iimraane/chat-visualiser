@@ -508,10 +508,17 @@ body.dark .date-bubble {
 .chat-footer {
     background: var(--bg-header);
     padding: 10px 16px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--border);
     flex-shrink: 0;
-    position: relative;
-    z-index: 10;
+    position: sticky;
+    position: -webkit-sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
 }
 
 .search-container {
