@@ -75,10 +75,15 @@ input[type="file"] {
     display: none;
     width: 100%;
     height: 100%;
+    height: 100vh;
+    height: -webkit-fill-available;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
 }
 
 .screen.active {
     display: flex;
+    flex-direction: column;
 }
 
 /* ========== UPLOAD SCREEN ========== */
@@ -86,6 +91,7 @@ input[type="file"] {
     justify-content: center;
     align-items: center;
     background: linear-gradient(135deg, #128c7e 0%, #075e54 100%);
+    padding: env(safe-area-inset-top, 20px) env(safe-area-inset-right, 20px) env(safe-area-inset-bottom, 20px) env(safe-area-inset-left, 20px);
 }
 
 .upload-card {

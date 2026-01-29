@@ -1934,24 +1934,37 @@ function handleSearchEasterEgg(config) {
 
 // ========== SCROLL TRIGGERS ==========
 
+let scrollTriggerInitialized = false;
+
 function setupScrollTriggers() {
+    // Prevent multiple initializations
+    if (scrollTriggerInitialized) return;
+    scrollTriggerInitialized = true;
+
     let scrollTimer = null;
+    let lastTriggerTime = 0;
+    const TRIGGER_COOLDOWN = 10000; // 10 seconds between popups
 
     chatArea.addEventListener('scroll', () => {
-        // Track scroll speed
+        // Rate limit the speed tracking
         const now = Date.now();
-        const currentPos = chatArea.scrollTop;
-        const timeDiff = now - scrollSpeed.lastTime;
-        const posDiff = Math.abs(currentPos - scrollSpeed.lastPosition);
 
-        scrollSpeed.speed = timeDiff > 0 ? posDiff / timeDiff : 0;
-        scrollSpeed.lastPosition = currentPos;
-        scrollSpeed.lastTime = now;
+        // Only track speed every 100ms to save performance
+        if (now - scrollSpeed.lastTime >= 100) {
+            const currentPos = chatArea.scrollTop;
+            const timeDiff = now - scrollSpeed.lastTime;
+            const posDiff = Math.abs(currentPos - scrollSpeed.lastPosition);
 
-        // Fast scroll detection (5000px in less than 3 seconds)
+            scrollSpeed.speed = timeDiff > 0 ? posDiff / timeDiff : 0;
+            scrollSpeed.lastPosition = currentPos;
+            scrollSpeed.lastTime = now;
+        }
+
+        // Fast scroll detection with cooldown
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => {
-            if (scrollSpeed.speed > 5) { // pixels per ms
+            if (scrollSpeed.speed > 5 && now - lastTriggerTime > TRIGGER_COOLDOWN) {
+                lastTriggerTime = now;
                 showLovePopupAdvanced({
                     emoji: '🏎️',
                     text: "Wow doucement Flash McQueen !",
@@ -1961,9 +1974,10 @@ function setupScrollTriggers() {
             }
         }, 500);
 
-        // First message (Big Bang)
-        if (visibleStart === 0 && !hasScrolledToTop) {
+        // First message (Big Bang) - only once
+        if (visibleStart === 0 && !hasScrolledToTop && now - lastTriggerTime > TRIGGER_COOLDOWN) {
             hasScrolledToTop = true;
+            lastTriggerTime = now;
             setTimeout(() => {
                 showLovePopupAdvanced({
                     emoji: '💥',
