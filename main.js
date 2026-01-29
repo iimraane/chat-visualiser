@@ -483,28 +483,20 @@ function createMessageElement(msg, i) {
             div.appendChild(badge);
         }
     } else if (/omis|omitted|absente?|<média|<media/i.test(msg.text)) {
-        // Media not found - with debug button
-        const container = document.createElement('div');
-        container.className = 'media-placeholder-container';
-
+        // Media not found - simple placeholder
         const p = document.createElement('div');
         p.className = 'media-placeholder';
-        p.textContent = '📎 Media not found';
-        container.appendChild(p);
-
-        const debugBtn = document.createElement('button');
-        debugBtn.className = 'debug-btn';
-        debugBtn.textContent = '🔍 Debug';
-        debugBtn.onclick = (e) => {
-            e.stopPropagation();
-            showMediaDebug(msg, i);
-        };
-        container.appendChild(debugBtn);
-
-        div.appendChild(container);
+        p.textContent = '📎 Media non trouvé';
+        div.appendChild(p);
     } else {
         const span = document.createElement('span');
-        span.textContent = msg.text;
+        // Highlight search keywords if present
+        if (currentSearchQuery && msg.text.toLowerCase().includes(currentSearchQuery)) {
+            const regex = new RegExp(`(${currentSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            span.innerHTML = msg.text.replace(regex, '<mark class="search-highlight">$1</mark>');
+        } else {
+            span.textContent = msg.text;
+        }
         div.appendChild(span);
     }
 
@@ -581,6 +573,8 @@ chatArea.addEventListener('scroll', () => {
 }, { passive: true });
 
 // Search
+let currentSearchQuery = ''; // Store current search query for highlighting
+
 searchInput.addEventListener('input', (e) => {
     const query = e.target.value.trim().toLowerCase();
     searchClear.classList.toggle('hidden', !query);
@@ -588,11 +582,16 @@ searchInput.addEventListener('input', (e) => {
     if (!query) {
         searchResults.classList.add('hidden');
         searchMatches = [];
+        currentSearchQuery = '';
         return;
     }
 
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => performSearch(query), 300);
+    // Wait 800ms after last keystroke before searching
+    searchTimeout = setTimeout(() => {
+        currentSearchQuery = query;
+        performSearch(query);
+    }, 800);
 });
 
 function performSearch(query) {
@@ -1570,10 +1569,10 @@ chatArea.addEventListener('touchstart', (e) => {
                 if (navigator.vibrate) {
                     navigator.vibrate(50);
                 }
-            }, 500);
+            }, 600); // Increased to 600ms for better UX
         }
     }
-}, { passive: true });
+}, { passive: false }); // Changed to false so we can prevent context menu
 
 chatArea.addEventListener('touchend', () => {
     if (longPressTimer) {

@@ -630,6 +630,20 @@ body.dark .date-bubble {
     }
 }
 
+/* Search keyword highlight */
+.search-highlight {
+    background: #ffeb3b;
+    color: #000;
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: 600;
+}
+
+body.dark .search-highlight {
+    background: #ff9800;
+    color: #000;
+}
+
 /* ========== MODAL CLOSE BUTTON ========== */
 .modal-close {
     position: absolute;
