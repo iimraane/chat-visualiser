@@ -4,11 +4,22 @@
     box-sizing: border-box;
 }
 
+html {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
     height: 100vh;
     overflow: hidden;
     background: #111;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
 }
 
 /* Apple Emoji Font */
@@ -280,6 +291,10 @@ body.dark .floating-date {
     z-index: 1;
     -webkit-overflow-scrolling: touch;
     will-change: scroll-position;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+    overscroll-behavior-y: contain;
+    -ms-overflow-style: -ms-autohiding-scrollbar;
 }
 
 #spacer-top,

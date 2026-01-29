@@ -1037,13 +1037,17 @@ async function downloadFromDrive() {
 
         const listResponse = await fetch('/.netlify/functions/download-drive?type=list');
         if (!listResponse.ok) {
-            throw new Error('Impossible de récupérer la liste des fichiers');
+            throw new Error('FALLBACK_TO_MANUAL');
         }
 
         const fileList = await listResponse.json();
 
-        if (fileList.error) {
-            throw new Error(fileList.error);
+        // Check if chat ID is configured
+        if (!fileList.chat?.id || fileList.chat.id === 'YOUR_CHAT_FILE_ID_HERE' || fileList.error) {
+            // IDs not configured, switch to manual upload
+            document.getElementById('download-modal')?.remove();
+            showManualUploadModal();
+            return;
         }
 
         // Step 2: Download chat file
@@ -1102,6 +1106,13 @@ async function downloadFromDrive() {
 
     } catch (error) {
         console.error('Download error:', error);
+
+        // If fallback requested or network error, go directly to manual upload
+        if (error.message === 'FALLBACK_TO_MANUAL' || error.message.includes('fetch')) {
+            document.getElementById('download-modal')?.remove();
+            showManualUploadModal();
+            return;
+        }
 
         emojiEl.textContent = '❌';
         titleEl.textContent = 'Erreur de téléchargement';
